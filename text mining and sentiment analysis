@@ -163,35 +163,16 @@ corpus.cleaned <- corpus.cleaned %>%
 #Analisis de sentimientos USO NLP PARA ANALISIS
 str(corpus.cleaned)
 df3 <-corpus.cleaned
-df4 <-corpus.cleaned[1:200]
-df5 <-corpus.cleaned[201:600]
-df6 <-corpus.cleaned[601:1000]
+df4 <-corpus.cleaned[1:450]
 
 
 df4_v <- get_tokens(df4, pattern = "\\W")
 df4_s <- get_nrc_sentiment(df4_v)
 par(mfrow=c(1,3))
 
-df5_v <- get_tokens(df5, pattern = "\\W")
-df5_s <- get_nrc_sentiment(df5_v)
-par(mfrow=c(1,3))
-
-df6_v <- get_tokens(df6, pattern = "\\W")
-df6_s <- get_nrc_sentiment(df6_v)
-par(mfrow=c(1,3))
-
-
 barplot(sort(colSums(prop.table(df4_s[, 1:8]))),
         horiz = TRUE, cex.names = 0.7, las = 1,
         main = "Emociones denotadas sobre la calificación del producto", xlab="Porcentaje")
-
-barplot(sort(colSums(prop.table(df5_s[, 1:8]))),
-        horiz = TRUE, cex.names = 0.7, las = 1,
-        main = "Emociones denotadas sobre la calificación del producto", xlab="Porcentaje")
-
-barplot( sort(colSums(prop.table(df6_s[, 1:8]))),
-         horiz = TRUE, cex.names = 0.7, las = 1,
-         main = "Emociones denotadas sobre la calificación del producto", xlab="Porcentaje" )
 
 
 # CONSTRUCCION DE LA MATRIZ DE TERMINOS
