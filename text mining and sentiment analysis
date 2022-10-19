@@ -55,6 +55,7 @@ sapply(clothes, function(x) sum(is.na(x)))
 
 str(clothes)
 table(clothes$Dept)
+sum(table(clothes$Dept))
 
 #Relación departamentos - edades
 
