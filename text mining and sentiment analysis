@@ -164,14 +164,13 @@ corpus.cleaned <- corpus.cleaned %>%
 #Analisis de sentimientos USO NLP PARA ANALISIS
 str(corpus.cleaned)
 df3 <-corpus.cleaned
-df4 <-corpus.cleaned[1:450]
-
+df4 <-df3[1:250]
 
 df4_v <- get_tokens(df4, pattern = "\\W")
 df4_s <- get_nrc_sentiment(df4_v)
 par(mfrow=c(1,3))
 
-barplot(sort(colSums(prop.table(df4_s[, 1:8]))),
+barplot(sort(colSums(prop.table(df4_s[, 1:10]))),
         horiz = TRUE, cex.names = 0.7, las = 1,
         main = "Emociones denotadas sobre la calificación del producto", xlab="Porcentaje")
 
