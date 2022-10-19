@@ -1,0 +1,269 @@
+#Instalación de paquetes y cargas de librerías
+install.packages("installr")
+install.packages('tm')
+install.packages('NLP')
+install.packages('SnowballC')
+install.packages("dplyr")
+install.packages('ggplot2')
+install.packages('stringr')
+install.packages('tidytext')
+install.packages('purrr')
+install.packages('igraph')
+install.packages('gtrendsR')
+#install.packages("devtools")
+install.packages('childesr')
+#devtools::install_github("langcog/childesr")
+install.packages("syuzhet")
+install.packages("RColorBrewer")
+install.packages("wordcloud")
+library(installr)
+library(purrr)
+library(dplyr)
+library(tm)
+library(SnowballC)
+library(ggplot2)
+library(RColorBrewer)
+library(wordcloud)
+library(stringr)
+library(igraph)
+library(tidytext)
+library(e1071)
+library(gtrendsR)
+library(childesr)
+library(devtools)
+library(syuzhet)
+library(RColorBrewer)
+library(wordcloud)
+######################################################################
+clothes<-Womens_Clothing_E_Commerce_Reviews
+#eliminacion de la primera columna es irrelevante
+clothes$...1 <- NULL
+str(clothes)
+
+#Renombre de columnas
+colnames(clothes) <- c('ID', 'Age', 'Title', 'Review', 'Rating', 'Recommend', 'Liked', 'Division', 'Dept', 'Class')
+str(clothes)
+
+#localizacion de datos faltantes por columna
+unlist(map(map(clothes, is.na), sum))
+
+#Gráfica comparativa entre Raitings/review por departamento
+ggplot(data.frame(prop.table(table(clothes$Dept))), aes(x=Var1, y = Freq*100)) + geom_bar(stat = 'identity') + xlab('Nombre de departamento') + ylab('Porcentaje de Reviews/Raitings (%)') + geom_text(aes(label=round(Freq*100,2)), vjust=-0.3) + ggtitle('Porcentaje de reviews por Departamento')
+
+#Analizando data faltante por campos
+sapply(clothes, function(x) sum(is.na(x)))
+
+str(clothes)
+summary(clothes$Dept)
+
+#Relación departamentos - edades
+
+edad <- clothes %>% filter(!is.na(Age), !is.na(Dept), Dept != 'Trend') %>% select(ID, Age, Dept) %>% mutate(Age_group = ifelse(Age < 30, '18-30', ifelse(Age < 50, '30-49', ifelse(Age < 66, '50-65', ifelse(Age < 130, '66-99'))))) 
+edad <- edad %>% mutate(Age_group = factor(Age_group), Dept = factor(Dept, levels = rev(c('Tops', 'Dresses', 'Bottoms', 'Intimate', 'Jackets'))))
+
+
+#Eliminacion de la data faltante
+
+n <- edad[!is.na(edad$Dept),]
+
+#Grafica para lograr ver estadisticas sobre el rango de edades a analizar (Departamentos vs Numero de Reviews)
+
+edad %>% filter(Age < 130) %>% group_by(Age_group) %>% count(Dept) %>% ggplot(aes(Dept, n, fill = Age_group)) + geom_bar(stat='identity', show.legend = FALSE) + facet_wrap(~Age_group, scales = 'free') + xlab('Departamento') + ylab('Numero de Reviews') + geom_text(aes(label = n), hjust = .73) + coord_flip()
+
+#Mineo de datos de tendencia!!
+str(clothes)
+table(clothes$Class) #Cantidad de veces que se repite cada palabra
+
+clothes_trend <- gtrends(c("dresses", "knits", "jeans", "pants"))
+plot(clothes_trend)
+
+#Text mining
+
+## Carga del archivo en un objeto de R, ANALISIS DE LAS REVIEWS
+df<-Womens_Clothing_E_Commerce_Reviews[,5]
+(n.df <- df %>% length())
+
+## LIMPIEZA DEL TEXTO
+##################################
+# FUNCION PARA ELIMINAR DIRECCIONES URL
+# "http" followed by any non-space letters
+removeURL <- function(x) gsub("http[^[:space:]]*", "", x)
+# FUNCION PARA REMOVER COSAS DISTINTAS DE PALABRAS
+removeNumPunct <- function(x) gsub("[^[:alpha:][:space:]]*", "", x)
+# PERSONALIZANDO LAS PALABRAS CONECTORAS
+myStopwords <- c(setdiff(stopwords('english'), c("r", "big")),"use", "see",
+                 "used", "via", "amp", "it" , "he", "she", "does", "im","just",
+                 "NA")
+
+
+# CONSTRUCCION DE CORPUS
+corpus.raw <- df$'Review Text' %>% VectorSource() %>% Corpus()
+# LIMPIEZA DEL CORPUS
+corpus.cleaned <- corpus.raw %>%
+  # Convertir todo a minúsculas
+  tm_map(content_transformer(tolower)) %>%
+  # Retirar los URL
+  tm_map(content_transformer(removeURL)) %>%
+  # Remover numeros y puntuación
+  tm_map(content_transformer(removeNumPunct)) %>%
+  # Retirar a las palabras conectoras
+  tm_map(removeWords, myStopwords) %>%
+  # Remover los espacios en blanco extras
+  tm_map(stripWhitespace)
+
+
+## COMPLETADO/CORTADO DE PALABRAS A PALABRAS RAIZ
+corpus.stemmed <- corpus.cleaned %>% tm_map(stemDocument)
+## Completado a raiz
+stemCompletion2 <- function(x, dictionary) {
+  x <- unlist(strsplit(as.character(x), " "))
+  x <- x[x != ""]
+  x <- stemCompletion(x, dictionary=dictionary)
+  x <- paste(x, sep="", collapse=" ")
+  PlainTextDocument(stripWhitespace(x))
+}
+corpus.completed <- lapply(corpus.stemmed, stemCompletion2, corpus.cleaned)
+corpus.completed <- as.VCorpus(corpus)
+
+corpus.completed <- corpus.stemmed %>%
+  lapply(stemCompletion2, dictionary=corpus.cleaned) %>%
+  VectorSource() %>% Corpus()
+#Comparación de textos antes y despues de la limpieza
+
+corpus.raw[[1]]$content %>% strwrap(60) %>% writeLines() #original
+corpus.cleaned[[1]]$content %>% strwrap(60) %>% writeLines() #despues de limpieza basica
+
+
+
+
+# count word frequence
+wordFreq <- function(corpus, word) {
+  results <- lapply(corpus,
+                    function(x) grep(as.character(x), pattern=paste0("\\<",word)) )
+  sum(unlist(results))
+}
+n.love <- corpus.cleaned %>% wordFreq("loveh")
+n.dress <- corpus.cleaned %>% wordFreq("dresss")
+n.little <- corpus.cleaned %>% wordFreq("litte")
+n.pretty <- corpus.cleaned %>% wordFreq("pretti")
+
+cat(n.love, n.dress,n.little,n.pretty)
+
+# replace old word with new word
+replaceWord <- function(corpus, oldword, newword) {
+  tm_map(corpus, content_transformer(gsub),
+         pattern=oldword, replacement=newword)
+}
+corpus.cleaned <- corpus.cleaned %>%
+  replaceWord("sexi", "sexy") %>%
+  replaceWord("litte", "little") %>%
+  replaceWord("pretti", "pretty") %>%
+  replaceWord("loveh", "love")
+
+#Analisis de sentimientos USO NLP PARA ANALISIS
+str(corpus.cleaned)
+df3 <-corpus.cleaned
+df4 <-corpus.cleaned[1:200]
+df5 <-corpus.cleaned[201:600]
+df6 <-corpus.cleaned[601:1000]
+
+
+df4_v <- get_tokens(df4, pattern = "\\W")
+df4_s <- get_nrc_sentiment(df4_v)
+par(mfrow=c(1,3))
+
+df5_v <- get_tokens(df5, pattern = "\\W")
+df5_s <- get_nrc_sentiment(df5_v)
+par(mfrow=c(1,3))
+
+df6_v <- get_tokens(df6, pattern = "\\W")
+df6_s <- get_nrc_sentiment(df6_v)
+par(mfrow=c(1,3))
+
+
+barplot(sort(colSums(prop.table(df4_s[, 1:8]))),
+        horiz = TRUE, cex.names = 0.7, las = 1,
+        main = "Emociones denotadas sobre la calificación del producto", xlab="Porcentaje")
+
+barplot(sort(colSums(prop.table(df5_s[, 1:8]))),
+        horiz = TRUE, cex.names = 0.7, las = 1,
+        main = "Emociones denotadas sobre la calificación del producto", xlab="Porcentaje")
+
+barplot( sort(colSums(prop.table(df6_s[, 1:8]))),
+         horiz = TRUE, cex.names = 0.7, las = 1,
+         main = "Emociones denotadas sobre la calificación del producto", xlab="Porcentaje" )
+
+
+# CONSTRUCCION DE LA MATRIZ DE TERMINOS
+###########################################
+## Build Term Document Matrix
+tdm <- corpus.cleaned %>%
+  TermDocumentMatrix(control = list(wordLengths = c(1,
+                                                    Inf))) %>%
+  print
+
+# Identificar dentro de la matriz de terminos la busqueda de terminos
+#relacionados a "little", "sexy", "pretty", "love"
+idx <- which(dimnames(tdm)$Terms %in% c("little", "sexy", "pretty", "love"))
+tdm[idx, 21:30] %>% as.matrix()
+# Visualizar terminos que cumplen con una frecuencia minima (>3500 repeticiones)
+freq.terms <- tdm %>% findFreqTerms(lowfreq = 3500) %>% print
+# Construir una tabla de frecuencia de terminos por encima de una frecuencia
+#minima
+term.freq <- tdm %>% as.matrix() %>% rowSums()
+term.freq <- term.freq %>% subset(term.freq >= 3500)
+df <- data.frame(term = names(term.freq), freq = term.freq)
+df
+
+## Grafico de frecuencia de terminos
+ggplot(df, aes(x=term, y=freq)) + geom_bar(stat="identity") +
+  xlab("Terms") + ylab("Count") + coord_flip() +
+  theme(axis.text=element_text(size=7))
+
+## word cloud
+m <- tdm %>% as.matrix
+# calculate the frequency of words and sort it by
+#frequency
+word.freq <- m %>% rowSums() %>% sort(decreasing = T)
+# colors
+pal <- brewer.pal(9, "BuGn")[-(1:4)]
+# plot word cloud
+install.packages('wordcloud')
+
+wordcloud(words = names(word.freq), freq =
+            word.freq, min.freq = 3,
+          random.order = F, colors = pal)
+
+## Medicion de nivel de relación entre terminos
+################################################
+tdm %>% findAssocs("dress", 0.2)
+tdm %>% findAssocs("size", 0.2)
+
+# Clustering Jerárquico
+###################################################
+## clustering of terms remove sparse terms
+m2 <- tdm %>% removeSparseTerms(sparse = 0.90) %>% as.matrix()
+# calculate distance matrix
+dist.matrix <- m2 %>% scale() %>% dist()
+# hierarchical clustering
+fit <- dist.matrix %>% hclust(method = "ward.D")
+plot(fit, hang = -2)
+fit %>% rect.hclust(k = 3) # cut tree into 6 clusters
+groups <- fit %>% cutree(k = 3)
+
+##CLUSTERING DE TERMINOS POR K MEDIAS
+########################################
+## k-means clustering of documents
+m3 <- m2 %>% t() # transpose the matrix to cluster documents (tweets)
+set.seed(122) # set a fixed random seed to make the result reproducible
+k <- 3 # number of clusters
+kmeansResult <- kmeans(m3, k)
+round(kmeansResult$centers, digits = 3)
+for (i in 1:k) {
+  cat(paste("cluster ", i, ": ", sep = ""))
+  s <- sort(kmeansResult$centers[i,], decreasing = T)
+  cat(names(s)[1:5], "\n")
+  # print the tweets of every cluster
+  
+  print(df[which(kmeansResult$cluster==i)])
+}
